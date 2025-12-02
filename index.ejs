@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Group Gatherings</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>Group Gatherings</h1>
+
+  <!-- AUTH STATUS -->
+  <% if (currentUser) { %>
+    <p>
+      Logged in as <strong><%= currentUser.name %></strong> 
+      (<%= currentUser.email %>)
+    </p>
+    <form method="GET" action="/logout">
+      <button type="submit">Logout</button>
+    </form>
+  <% } else { %>
+    <h2>Register</h2>
+    <form method="POST" action="/register">
+      <input type="text" name="name" placeholder="Name" required>
+      <input type="email" name="email" placeholder="Email" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Register</button>
+    </form>
+
+    <h2>Login</h2>
+    <form method="POST" action="/login">
+      <input type="email" name="email" placeholder="Email" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+  <% } %>
+
+  <hr>
+
+  <!-- GROUPS -->
+  <h2>Groups</h2>
+  <ul>
+    <% groups.forEach(g => { %>
+      <li>
+        <strong><%= g.name %></strong> — <%= g.description || '' %><br>
+        Members: <%= g.member_count %>
+
+        <% if (g.current_role) { %>
+          · You are <%= g.current_role %>
+        <% } %>
+
+        <% if (currentUser) { %>
+          <% if (!g.current_role) { %>
+            <!-- Join group -->
+            <form method="POST" action="/groups/<%= g.group_id %>/join" style="display:inline;">
+              <button type="submit">Join</button>
+            </form>
+          <% } else { %>
+            <!-- Leave group -->
+            <form method="POST" action="/groups/<%= g.group_id %>/leave" style="display:inline;">
+              <button type="submit">Leave</button>
+            </form>
+          <% } %>
+        <% } %>
+      </li>
+    <% }) %>
+  </ul>
+
+  <% if (currentUser) { %>
+    <h3>Create Group</h3>
+    <form method="POST" action="/groups">
+      <input type="text" name="name" placeholder="Group name" required>
+      <input type="text" name="description" placeholder="Description">
+      <button type="submit">Create Group</button>
+    </form>
+  <% } else { %>
+    <p><em>Login to create or join groups.</em></p>
+  <% } %>
+
+  <hr>
+
+  <!-- EVENTS -->
+  <h2>Events</h2>
+
+  <ul>
+    <% events.forEach(e => { %>
+      <li>
+        <strong><%= e.title %></strong> (Group: <%= e.group_name %>)<br>
+        <%= e.description || '' %><br>
+        <em><%= e.location || 'No location' %></em><br>
+        Status: <%= e.status %><br>
+
+        <a href="/events/<%= e.event_id %>">View details</a>
+      </li>
+    <% }) %>
+  </ul>
+
+  <% if (currentUser) { %>
+    <h3>Create Event</h3>
+    <form method="POST" action="/events">
+      <label for="group_id">Select Group:</label>
+      <select name="group_id" id="group_id" required>
+        <% groups.forEach(g => { %>
+          <% if (g.current_role === 'admin') { %>
+            <option value="<%= g.group_id %>">
+              <%= g.name %> (Group <%= g.group_id %>)
+            </option>
+          <% } %>
+        <% }) %>
+      </select>
+
+      <input type="text" name="title" placeholder="Title" required>
+      <input type="text" name="description" placeholder="Description">
+
+      <label>Start time:</label>
+      <input type="datetime-local" name="start_at" required>
+
+      <label>End time:</label>
+      <input type="datetime-local" name="end_at" required>
+
+      <input type="text" name="location" placeholder="Location">
+
+      <select name="status">
+        <option value="draft">draft</option>
+        <option value="published">published</option>
+        <option value="finalized">finalized</option>
+      </select>
+
+      <button type="submit">Create Event</button>
+    </form>
+  <% } else { %>
+    <p><em>Login to create events.</em></p>
+  <% } %>
+
+  <hr>
+
+  <!-- SELECTED EVENT DETAILS -->
+  <% if (selectedEvent) { %>
+    <h2>Event Details: <%= selectedEvent.title %></h2>
+
+    <!-- ADMIN: EDIT + DELETE BUTTONS -->
+    <% if (isAdmin) { %>
+      <form method="GET" action="/events/<%= selectedEvent.event_id %>/edit" style="display:inline;">
+        <button>Edit Event</button>
+      </form>
+
+      <form method="POST" action="/events/<%= selectedEvent.event_id %>/delete"
+            onsubmit="return confirm('Are you sure you want to delete this event?');"
+            style="display:inline;">
+        <button style="background:red;color:white;">Delete Event</button>
+      </form>
+      <br><br>
+    <% } %>
+
+    <p>
+      Group: <strong><%= selectedEvent.group_name %></strong><br>
+      Description: <%= selectedEvent.description || '' %><br>
+      Location: <%= selectedEvent.location || 'No location' %><br>
+      Status: <%= selectedEvent.status %><br>
+      Start: <%= new Date(selectedEvent.start_at).toLocaleString() %><br>
+      End: <%= new Date(selectedEvent.end_at).toLocaleString() %>
+    </p>
+
+    <!-- RSVP SUMMARY -->
+    <h3>RSVP Summary</h3>
+    <p>
+      Yes: <%= rsvpSummary.yes %> · 
+      Maybe: <%= rsvpSummary.maybe %> ·
+      No: <%= rsvpSummary.no %>
+    </p>
+
+    <!-- RSVP LIST -->
+    <h4>RSVPs</h4>
+    <ul>
+      <% rsvps.forEach(r => { %>
+        <li><strong><%= r.name %></strong>: <%= r.response %></li>
+      <% }) %>
+    </ul>
+
+    <!-- RSVP FORM -->
+    <% if (currentUser) { %>
+      <h4>Your RSVP</h4>
+      <form method="POST" action="/events/<%= selectedEvent.event_id %>/rsvp">
+        <label><input type="radio" name="response" value="yes"> Yes</label>
+        <label><input type="radio" name="response" value="maybe"> Maybe</label>
+        <label><input type="radio" name="response" value="no"> No</label>
+        <button type="submit">Submit RSVP</button>
+      </form>
+    <% } %>
+
+    <hr>
+
+    <!-- COMMENTS -->
+    <h3>Comments</h3>
+    <ul>
+      <% comments.forEach(c => { %>
+        <li><strong><%= c.name %></strong>: <%= c.body %></li>
+      <% }) %>
+    </ul>
+
+    <% if (currentUser && canComment) { %>
+      <h4>Add Comment</h4>
+      <form method="POST" action="/events/<%= selectedEvent.event_id %>/comments">
+        <textarea name="body" rows="3" cols="40" required></textarea>
+        <br>
+        <button>Post Comment</button>
+      </form>
+    <% } %>
+
+    <hr>
+
+    <!-- POLLS -->
+    <h3>Polls</h3>
+    <% if (polls.length === 0) { %>
+      <p>No polls yet.</p>
+    <% } else { %>
+      <% polls.forEach(p => { %>
+        <div style="border:1px solid #ccc; padding:10px; margin-bottom:10px;">
+          <strong><%= p.question %></strong> (<%= p.type %>)<br>
+          <% if (!p.is_open) { %><em>(Closed)</em><% } %>
+
+          <ul>
+            <% p.options.forEach(o => { %>
+              <li><%= o.value %> — <%= o.vote_count %> votes</li>
+            <% }) %>
+          </ul>
+
+          <% if (currentUser && p.is_open) { %>
+            <form method="POST" action="/polls/<%= p.poll_id %>/vote">
+              <input type="hidden" name="event_id" value="<%= selectedEvent.event_id %>">
+              <select name="option_id">
+                <% p.options.forEach(o => { %>
+                  <option value="<%= o.option_id %>"><%= o.value %></option>
+                <% }) %>
+              </select>
+              <button>Vote</button>
+            </form>
+          <% } %>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <!-- CREATE POLL -->
+    <% if (currentUser && isAdmin) { %>
+      <h4>Create Poll</h4>
+      <form method="POST" action="/events/<%= selectedEvent.event_id %>/polls">
+        <select name="type">
+          <option value="time">time</option>
+          <option value="location">location</option>
+          <option value="other">other</option>
+        </select>
+        <input type="text" name="question" placeholder="Question" required><br>
+        <input type="text" name="option1" placeholder="Option 1" required><br>
+        <input type="text" name="option2" placeholder="Option 2"><br>
+        <input type="text" name="option3" placeholder="Option 3"><br>
+        <button>Create Poll</button>
+      </form>
+    <% } %>
+  <% } %>
+
+  <!-- EDIT EVENT FORM -->
+  <% if (editEvent) { %>
+    <hr>
+    <h2>Edit Event: <%= editEvent.title %></h2>
+
+    <form method="POST" action="/events/<%= editEvent.event_id %>/edit">
+      <input type="text" name="title" value="<%= editEvent.title %>" required>
+
+      <input type="text" name="description"
+             value="<%= editEvent.description || '' %>">
+
+      <label>Start:</label>
+      <input type="datetime-local" name="start_at"
+        value="<%= new Date(editEvent.start_at).toISOString().slice(0,16) %>" required>
+
+      <label>End:</label>
+      <input type="datetime-local" name="end_at"
+        value="<%= new Date(editEvent.end_at).toISOString().slice(0,16) %>" required>
+
+      <input type="text" name="location" value="<%= editEvent.location || '' %>">
+
+      <select name="status">
+        <option value="draft" <%= editEvent.status === "draft" ? "selected" : "" %>>
+          draft
+        </option>
+        <option value="published" <%= editEvent.status === "published" ? "selected" : "" %>>
+          published
+        </option>
+        <option value="finalized" <%= editEvent.status === "finalized" ? "selected" : "" %>>
+          finalized
+        </option>
+      </select>
+
+      <button type="submit">Update Event</button>
+    </form>
+  <% } %>
+
+</body>
+</html>
